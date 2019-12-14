@@ -1,26 +1,71 @@
 defmodule Metex.Worker do
-  def loop do
-    receive do
-      {sender_pid, location} ->
-        send(sender_pid, {:ok, temperature_of(location)})
+  @name MW
+  use GenServer
+
+  def start_link(ops \\ []) do
+    GenServer.start(__MODULE__, :ok, ops ++ [name: @name])
+  end
+
+  def init(:ok) do
+    {:ok, %{}}
+  end
+
+  def stop do
+    GenServer.cast(@name, :stop)
+  end
+
+  # client
+  def get_temperature(location) do
+    GenServer.call(@name, {:location, location})
+  end
+
+  def get_state do
+    GenServer.call(@name, :get_state)
+  end
+
+  def reset_state do
+    GenServer.cast(@name, :reset_state)
+  end
+
+  # server
+
+  def handle_call(:get_state, _from, state) do
+    {:reply, state, state}
+  end
+
+  def handle_call({:location, location}, _from, state) do
+    case temperature_of(location) do
+      {:ok, temp} ->
+        new_state = update_state(state, location)
+        # _, return value, new_state
+        {:reply, "#{temp}", new_state}
 
       _ ->
-        IO.puts("don't know how to process message")
+        {:reply, :error, state}
     end
+  end
 
-    loop()
+  def handle_cast(:reset_state, _state) do
+    {:noreply, %{}}
+  end
+
+  def handle_cast(:stop, state) do
+    {:stop, :normal, state}
+  end
+
+  defp update_state(old, location) do
+    case Map.has_key?(old, location) do
+      true ->
+        # fn(val) -> val + 1 end
+        Map.update!(old, location, &(&1 + 1))
+
+      false ->
+        Map.put_new(old, location, 1)
+    end
   end
 
   def temperature_of(location) do
-    result = url_for(location) |> HTTPoison.get() |> parse_response
-
-    case result do
-      {:ok, temp} ->
-        "#{location} #{temp}"
-
-      :error ->
-        "#{location} not found"
-    end
+    url_for(location) |> HTTPoison.get() |> parse_response
   end
 
   defp url_for(location) do
