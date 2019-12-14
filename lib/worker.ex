@@ -53,6 +53,11 @@ defmodule Metex.Worker do
     {:stop, :normal, state}
   end
 
+  def handle_info(msg, state) do
+    IO.puts("recieved #{inspect(msg)}")
+    {:noreply, state}
+  end
+
   defp update_state(old, location) do
     case Map.has_key?(old, location) do
       true ->
